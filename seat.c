@@ -884,3 +884,23 @@ seat_set_focus(struct cg_seat *seat, struct cg_view *view)
 
 	process_cursor_motion(seat, -1);
 }
+
+static struct wlr_input_device*
+seat_get_device(struct cg_seat *seat, struct wlr_input_device *device)
+{
+    struct wlr_input_device *dev = NULL;
+    wl_list_for_each(dev, &seat->keyboards, link)
+        return dev;
+    return NULL;
+}
+
+void
+seat_add_device(struct cg_seat *seat, struct wlr_input_device *device)
+{
+    if (!seat_get_device(seat, device)) {
+        wlr_log(WLR_INFO, "adding device %s to seat %s", device->name, seat->seat->name);
+        wl_list_insert(&seat->keyboards, &device->link);
+    }
+    handle_new_keyboard(seat, device);
+    update_capabilities(seat);
+}

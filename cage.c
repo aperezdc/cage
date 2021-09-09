@@ -32,6 +32,7 @@
 #if CAGE_HAS_XWAYLAND
 #include <wlr/types/wlr_xcursor_manager.h>
 #endif
+#include <wlr/types/wlr_virtual_keyboard_v1.h>
 #include <wlr/types/wlr_xdg_decoration_v1.h>
 #include <wlr/types/wlr_xdg_output_v1.h>
 #include <wlr/types/wlr_xdg_shell.h>
@@ -253,6 +254,19 @@ parse_args(struct cg_server *server, int argc, char *argv[])
 	return true;
 }
 
+static void
+handle_virtual_keyboard(struct wl_listener *listener, void *data)
+{
+    struct cg_server *server = wl_container_of(listener, server, new_virtual_keyboard);
+    struct wlr_virtual_keyboard_v1 *keyboard = data;
+    struct wlr_input_device *device = &keyboard->input_device;
+
+    if (keyboard->seat && keyboard->seat != server->seat->seat)
+        wlr_log(WLR_ERROR, "Virtual keyboard requested for non-default seat");
+
+    seat_add_device(server->seat, device);
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -268,6 +282,7 @@ main(int argc, char *argv[])
 	struct wlr_xdg_decoration_manager_v1 *xdg_decoration_manager = NULL;
 	struct wlr_export_dmabuf_manager_v1 *export_dmabuf_manager = NULL;
 	struct wlr_screencopy_manager_v1 *screencopy_manager = NULL;
+    struct wlr_virtual_keyboard_manager_v1 *virtual_kbd_manager = NULL;
 	struct wlr_xdg_output_manager_v1 *output_manager = NULL;
 	struct wlr_gamma_control_manager_v1 *gamma_control_manager = NULL;
 	struct wlr_xdg_shell *xdg_shell = NULL;
@@ -428,6 +443,15 @@ main(int argc, char *argv[])
 		ret = 1;
 		goto end;
 	}
+
+    virtual_kbd_manager = wlr_virtual_keyboard_manager_v1_create(server.wl_display);
+    if (!virtual_kbd_manager) {
+        wlr_log(WLR_ERROR, "Cannot create virtual keyboard manager");
+        ret = 1;
+        goto end;
+    }
+    wl_signal_add(&virtual_kbd_manager->events.new_virtual_keyboard, &server.new_virtual_keyboard);
+    server.new_virtual_keyboard.notify = handle_virtual_keyboard;
 
 #if CAGE_HAS_XWAYLAND
 	xwayland = wlr_xwayland_create(server.wl_display, compositor, true);
